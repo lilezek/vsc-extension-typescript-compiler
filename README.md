@@ -19,6 +19,10 @@ N/A
 
 Users appreciate release notes as you update your extension.
 
+### 0.1.0
+
+We support now other Uri's than "file". This means this extension now should work even in web.
+
 ### 0.0.1
 
 Initial release of TypeScript compiler.
