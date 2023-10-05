@@ -44,16 +44,16 @@ export class AsyncFS {
 
     constructor() { }
 
-    readFile(path: string): string | null {
-        const file = this.cacheFiles.get(path);
+    readFile(uri: vscode.Uri): string | null {
+        const file = this.cacheFiles.get(uri.path);
         if (file === undefined) {
-            const file = fs.readFile(vscode.Uri.file(path)).then((buffer) => {
+            const file = fs.readFile(uri).then((buffer) => {
                 const content = new TextDecoder().decode(buffer);
-                this.cacheFiles.set(path, content);
+                this.cacheFiles.set(uri.path, content);
                 return content;
             }, (error) => {
                 console.error(error);
-                this.cacheFiles.set(path, null);
+                this.cacheFiles.set(uri.path, null);
                 return null;
             });
 
@@ -65,31 +65,31 @@ export class AsyncFS {
         return file;
     }
 
-    fileExists(path: string) {
-        return this.readFile(path) !== null;
+    fileExists(uri: vscode.Uri) {
+        return this.readFile(uri) !== null;
     }
 
-    writeFile(path: string, data: string) {
+    writeFile(uri: vscode.Uri, data: string) {
         const dataArray = new TextEncoder().encode(data);
-        const file = fs.writeFile(vscode.Uri.file(path), dataArray).then(() => {
-            this.cacheFiles.set(path, data);
+        const file = fs.writeFile(uri, dataArray).then(() => {
+            this.cacheFiles.set(uri.path, data);
         }, (error) => {
             console.error(error);
-            this.cacheFiles.set(path, null);
+            this.cacheFiles.set(uri.path, null);
         });
 
         this.promises.push(file);
         return file;
     }
 
-    readDirectory(path: string) {
-        const directory = this.cacheDirectories.get(path);
+    readDirectory(uri: vscode.Uri) {
+        const directory = this.cacheDirectories.get(uri.path);
         if (directory === undefined) {
-            const directory = fs.readDirectory(vscode.Uri.file(path)).then((files) => {
-                this.cacheDirectories.set(path, files);
+            const directory = fs.readDirectory(uri).then((files) => {
+                this.cacheDirectories.set(uri.path, files);
                 return files;
             }, (error) => {
-                this.cacheDirectories.set(path, []);
+                this.cacheDirectories.set(uri.path, []);
                 return [];
             });
             this.promises.push(directory);
@@ -100,8 +100,8 @@ export class AsyncFS {
         return directory;
     }
 
-    directoryExists(path: string) {
-        return this.readDirectory(path) !== null;
+    directoryExists(uri: vscode.Uri) {
+        return this.readDirectory(uri) !== null;
     }
 
     async awaitLastPromise() {

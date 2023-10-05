@@ -1,6 +1,6 @@
 {
-  "name": "typescript-compiler",
-  "displayName": "TypeScript Compiler",
+  "name": "typescript-compiler-web",
+  "displayName": "TypeScript Compiler for web",
   "description": "TypeScript compiler for the web",
   "version": "0.0.1",
   "engines": {
@@ -14,7 +14,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "typescript-compiler.tsc",
+        "command": "typescript-compiler-web.tsc",
         "title": "Compile TypeScript (tsc)"
       }
     ]
@@ -47,5 +47,10 @@
   "dependencies": {
     "minimatch": "^9.0.3",
     "typescript": "^5.2.2"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lilezek/vsc-extension-tsc"
+  },
+  "publisher": "lilezek"
 }

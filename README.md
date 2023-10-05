@@ -1,4 +1,4 @@
-# typescript-compiler README
+# typescript-compiler-web README
 
 This is a standalone extension for compiling TypeScript. It is slow and probably inefficient, but it works in web without the need of a terminal.
 

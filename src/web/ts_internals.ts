@@ -18,15 +18,20 @@ export class VSCSystem implements ts.System {
     newLine: string = '\n';
     useCaseSensitiveFileNames: boolean = true;
 
-    constructor(private projectRoot: string) {
+    constructor(private projectRoot: vscode.Uri) {
         this.fs = new AsyncFS();
     }
 
-    private getPath(relPath: string) {
-        if (relPath.startsWith('/')) {
-            return relPath;
+    private getUri(relPath: string) {
+        if (relPath.startsWith(this.projectRoot.toString())) {
+            return vscode.Uri.parse(relPath);
         }
-        return `${this.projectRoot}/${relPath}`;
+        if (relPath.startsWith('/')) {
+            return this.projectRoot.with({ path: relPath });
+        }
+        return this.projectRoot.with({
+            path: `${this.projectRoot.path}/${relPath}`
+        });
     }
 
     write(s: string): void {
@@ -39,35 +44,35 @@ export class VSCSystem implements ts.System {
         throw new Error('Method getWidthOfTerminal not implemented.' + JSON.stringify(arguments));
     }
     readFile(path: string, encoding?: string | undefined): string | undefined {
-        return this.fs.readFile(this.getPath(path)) ?? undefined;
+        return this.fs.readFile(this.getUri(path)) ?? undefined;
     }
     getFileSize?(path: string): number {
         throw new Error('Method getFileSize not implemented.' + JSON.stringify(arguments));
     }
     writeFile(path: string, data: string, writeByteOrderMark?: boolean | undefined): void {
-        this.fs.writeFile(this.getPath(path), data);
+        this.fs.writeFile(this.getUri(path), data);
     }
     resolvePath(path: string): string {
         throw new Error('Method resolvePath not implemented.' + JSON.stringify(arguments));
     }
     fileExists(path: string): boolean {
-        return this.fs.fileExists(this.getPath(path));
+        return this.fs.fileExists(this.getUri(path));
     }
     directoryExists(path: string): boolean {
-        return this.fs.directoryExists(`${this.projectRoot}/${path}`);
+        return this.fs.directoryExists(this.getUri(path));
     }
     createDirectory(path: string): void {
         throw new Error('Method createDirectory not implemented.' + JSON.stringify(arguments));
     }
     getExecutingFilePath(): string {
-        return this.projectRoot;
+        return this.projectRoot.path;
     }
     getCurrentDirectory(): string {
-        return this.projectRoot;
+        return this.projectRoot.path;
     }
     getDirectories(rootDir: string): string[] {
         const files: string[] = [];
-        const ls = this.fs.readDirectory(rootDir);
+        const ls = this.fs.readDirectory(this.getUri(rootDir));
 
         if (!ls) {
             return [];
@@ -75,7 +80,7 @@ export class VSCSystem implements ts.System {
 
         for (const [path, type] of ls) {
             if (type === vscode.FileType.Directory) {
-                files.push(`${this.getPath(rootDir)}/${path}`);
+                files.push(`${this.getUri(rootDir)}/${path}`);
             }
         }
 
@@ -87,7 +92,7 @@ export class VSCSystem implements ts.System {
         }
 
         const files: string[] = [];
-        const ls = this.fs.readDirectory(rootDir);
+        const ls = this.fs.readDirectory(this.getUri(rootDir));
 
         if (!ls) {
             return [];
@@ -100,7 +105,6 @@ export class VSCSystem implements ts.System {
                 }
 
                 const excluded = (excludes ?? []).some((exclude) => {
-                    const relativeExclude = vscode.workspace.asRelativePath(`${this.projectRoot}/${exclude}`);
                     const relativePath = vscode.workspace.asRelativePath(`${rootDir}/${path}`);
                     if (minimatch(relativePath, exclude)) {
                         return true;
@@ -113,7 +117,6 @@ export class VSCSystem implements ts.System {
 
                 const included = (includes ?? []).every((include) => {
                     // Get the relative path
-                    const relativeInclude = vscode.workspace.asRelativePath(`${this.projectRoot}/${include}`);
                     const relativePath = vscode.workspace.asRelativePath(`${rootDir}/${path}`);
                     if (minimatch(relativePath, include)) {
                         return true;
@@ -124,7 +127,7 @@ export class VSCSystem implements ts.System {
                     continue;
                 }
 
-                files.push(`${this.getPath(rootDir)}/${path}`);
+                files.push(`${rootDir}/${path}`);
             } else if (type === vscode.FileType.Directory) {
                 files.push(...this.readDirectory(`${rootDir}/${path}`, extensions, excludes, includes, depth ? depth - 1 : undefined));
             }
@@ -149,9 +152,6 @@ export class VSCSystem implements ts.System {
     }
     exit(exitCode?: number | undefined): void {
         throw new Error('Method exit not implemented.' + JSON.stringify(arguments));
-    }
-    realpath?(path: string): string {
-        throw new Error('Method realpath not implemented.' + JSON.stringify(arguments));
     }
     setTimeout?(callback: (...args: any[]) => void, ms: number, ...args: any[]) {
         throw new Error('Method setTimeout not implemented.' + JSON.stringify(arguments));

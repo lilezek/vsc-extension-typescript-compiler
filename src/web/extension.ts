@@ -5,13 +5,11 @@ import { VSCSystem, findTsConfig } from './ts_internals';
 import * as ts from 'typescript';
 import { loopUntilReady } from './asynchronous-fs';
 
-const sysFolders = new Map<string, VSCSystem>();
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-	console.log('typescript-compiler is now active!');
-	let disposable = vscode.commands.registerCommand('typescript-compiler.tsc', async () => {
+	console.log('typescript-compiler-web is now active!');
+	let disposable = vscode.commands.registerCommand('typescript-compiler-web.tsc', async () => {
 		// Find the tsconfig.json file in the root of the workspace
 		const tsconfigFiles = await findTsConfig();
 
@@ -24,89 +22,78 @@ export function activate(context: vscode.ExtensionContext) {
 		const tsconfigJson = ts.parseConfigFileTextToJson(tsconfigFile.path, tsconfigContent);
 
 		// Get the folder of the tsconfig file
-		const tsconfigFolder = tsconfigFile.path.replace(/\/[^\/]+$/, '');
+		const tsconfigFolder = tsconfigFile.with({ path: tsconfigFile.path.replace(/\/[^\/]+$/, '') });
 
 		// Create a host for the compiler
-		let sys: VSCSystem;
-		if (sysFolders.has(tsconfigFolder)) {
-			sys = sysFolders.get(tsconfigFolder)!;
-		} else {
-			sys = new VSCSystem(tsconfigFolder);
-			sysFolders.set(tsconfigFolder, sys);
-		}
+		let sys = new VSCSystem(tsconfigFolder);
 
-		// Replace some of the options
-		const compilerOptions = tsconfigJson.config.compilerOptions;
-		compilerOptions.module = ts.ModuleKind[compilerOptions.module];
-		compilerOptions.target = ts.ScriptTarget[compilerOptions.target];
+		try {
+			await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: 'Compiling TypeScript',
+				cancellable: false,
+			}, async () => {
+				const parsedConfig: ts.ParsedCommandLine = await loopUntilReady(
+					() => ts.parseJsonConfigFileContent(
+						tsconfigJson.config,
+						sys,
+						tsconfigFolder.path,
+						tsconfigJson.config.options,
+						'tsconfig.json'
+					)
+				);
 
-		const promise = vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: 'Compiling TypeScript',
-			cancellable: false,
-		}, async () => {
-			const parsedConfig = await loopUntilReady(
-				() => ts.parseJsonConfigFileContent(
-					tsconfigJson.config,
-					sys,
-					tsconfigFolder,
-					compilerOptions,
-					'tsconfig.json'
-				)
-			);
+				// Replace some of the options
+				const compilerOptions = parsedConfig.options;
+				// compilerOptions.module = ts.ModuleKind[compilerOptions.module ?? "esnext"];
+				// compilerOptions.target = ts.ScriptTarget[compilerOptions.target ?? "esnext"];
 
-			// Prepare the files beforehand
-			for (const fileName of parsedConfig.fileNames) {
-				try {
-					sys.readFile(fileName);
-				} catch (e) {
-					// Ignore errors
-				}
-			}
-
-			await sys.awaitLastPromise();
-
-			// Compile the project
-			let program: ts.Program;
-			do {
-				program = await loopUntilReady(() =>
-					ts.createProgram(parsedConfig.fileNames, parsedConfig.options, ts.createIncrementalCompilerHost(parsedConfig.options, sys)));
-
-				// Get the diagnostics
-				const diagnostics = ts.getPreEmitDiagnostics(program);
-
-				if (!diagnostics.length) {
-					break;
+				// Prepare the files beforehand
+				for (const fileName of parsedConfig.fileNames) {
+					try {
+						sys.readFile(fileName);
+					} catch (e) {
+						// Ignore errors
+					}
 				}
 
-				if (!await sys.awaitLastPromise()) {
-					break;
-				}
-			} while (true);
+				await sys.awaitLastPromise();
 
-			// Write files to disk
-			let emitResult: ts.EmitResult;
-			do {
+				// Compile the project
+				let program: ts.Program;
+				do {
+					program = await loopUntilReady(() =>
+						ts.createProgram(parsedConfig.fileNames, parsedConfig.options, ts.createIncrementalCompilerHost(parsedConfig.options, sys)));
 
-				console.log('compilerOptions', program.getCompilerOptions());
+					// Get the diagnostics
+					const diagnostics = ts.getPreEmitDiagnostics(program);
 
-				emitResult = await loopUntilReady(() => program.emit());
-				const diagnostics = emitResult.diagnostics;
-				console.warn('diagnostics', diagnostics);
+					if (!diagnostics.length) {
+						break;
+					}
 
-				if (!diagnostics.length || !await sys.awaitLastPromise()) {
-					break;
-				}
-			} while (true);
+					if (!await sys.awaitLastPromise()) {
+						break;
+					}
+				} while (true);
 
-			await sys.awaitLastPromise();
-		});
+				// Write files to disk
+				let emitResult: ts.EmitResult;
+				do {
+					emitResult = await loopUntilReady(() => program.emit());
+					const diagnostics = emitResult.diagnostics;
+					if (!diagnostics.length || !await sys.awaitLastPromise()) {
+						break;
+					}
+				} while (true);
 
-		promise.then(() => {
+				await sys.awaitLastPromise();
+			});
 			vscode.window.showInformationMessage('TypeScript compilation complete!');
-		}, (reason) => {
+		}
+		catch (reason) {
 			vscode.window.showErrorMessage(`TypeScript compilation failed: ${reason}`);
-		});
+		}
 	});
 
 	context.subscriptions.push(disposable);
