@@ -17,8 +17,6 @@ N/A
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
 ### 0.1.0
 
 We support now other Uri's than "file". This means this extension now should work even in web.
